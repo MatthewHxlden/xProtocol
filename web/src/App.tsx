@@ -3,13 +3,38 @@ import type { FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 
+const TOKEN_NAME = "xLUNAR";
+const TOKEN_TICKER = "$xLNR";
+
+type PhantomEvent = "connect" | "disconnect" | "accountChanged";
+
+interface PhantomPublicKey {
+  toString(): string;
+}
+
+interface PhantomProvider {
+  isPhantom?: boolean;
+  publicKey?: PhantomPublicKey;
+  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: PhantomPublicKey }>;
+  disconnect: () => Promise<void>;
+  on?: (event: PhantomEvent, handler: (publicKey: PhantomPublicKey) => void) => void;
+  off?: (event: PhantomEvent, handler: (publicKey: PhantomPublicKey) => void) => void;
+}
+
+declare global {
+  interface Window {
+    solana?: PhantomProvider;
+  }
+}
+
 type RouteKey =
   | "/sys/manifest"
   | "/validators"
   | "/blocks"
   | "/explorer"
   | "/wallet"
-  | "/faucet";
+  | "/faucet"
+  | "/markets";
 
 type CommandEntry = {
   actor: string;
@@ -47,6 +72,19 @@ type FaucetEntry = {
   status: "completed" | "pending";
 };
 
+type CandleEntry = {
+  id: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  buyers: number;
+  sellers: number;
+  holders: number;
+  timestamp: string;
+};
+
 const asciiFrameLines = [
   "╔════════════════════════════════════════════════════════════════════════════════╗",
   "║                             0XPROTOCOL TERMINAL v2.3.7                         ║",
@@ -74,6 +112,7 @@ const routes: { path: RouteKey; label: string; description: string }[] = [
   { path: "/validators", label: "/validators", description: "validator roster" },
   { path: "/blocks", label: "/blocks", description: "live block feed" },
   { path: "/explorer", label: "/explorer", description: "ledger + registry" },
+  { path: "/markets", label: "/markets", description: "xLUNAR markets" },
   { path: "/wallet", label: "/wallet", description: "manage account" },
   { path: "/faucet", label: "/faucet", description: "claim resources" }
 ];
@@ -127,19 +166,19 @@ const explorerAddresses = [
   {
     label: "treasury://ecosystem",
     address: "0x7E6fD42017b1105CFdf0f45C11a2dD67a4028C11",
-    balance: "1 024 512.4488 XLORE",
-    notes: "Ecosystem runway and grant allocations streamed quarterly."
+    balance: "1 024 512.4488 xLUNAR",
+    notes: "Ecosystem runway and grant allocations streamed quarterly in $xLNR."
   },
   {
     label: "validator://synapse",
     address: "0xa90EE72fDc4a8216584B671781976d74C4B9Ab62",
-    balance: "512 128.2234 XLORE",
+    balance: "512 128.2234 xLUNAR",
     notes: "Sequencer collateral locked for epoch rotation."
   },
   {
     label: "citizen://kez",
     address: "0x59c4b7E7b119c6908E9A6E106D05b98B193cA3Db",
-    balance: "42.0420 XLORE",
+    balance: "42.0420 xLUNAR",
     notes: "Community delegate participating in protocol votes."
   }
 ];
@@ -147,6 +186,7 @@ const explorerAddresses = [
 const walletShortcuts = [
   "press [g] to generate a fresh address",
   "press [t] to focus the transfer amount",
+  "press [p] to connect Phantom",
   "press [f] to jump to faucet claims"
 ];
 
@@ -156,6 +196,7 @@ const commandLogScript: CommandEntry[] = [
   { actor: "metrics", message: "Stabilised throughput baseline at 94,000 TPS." },
   { actor: "scheduler", message: "Sequencer rotation seeded from epoch 518." },
   { actor: "blocks", message: "Monitoring finality within a 0.4s window." },
+  { actor: "markets", message: "xLUNAR 5m market desk syncing to /markets route." },
   { actor: "wallet", message: "Wallet shell ready for transfers and faucet claims." },
   { actor: "explorer", message: "Ledger registry indexed and available for queries." }
 ];
@@ -233,6 +274,57 @@ const formatAmount = (value: number): string =>
 const formatTime = (iso: string): string =>
   new Date(iso).toLocaleTimeString("en-US", { hour12: false });
 
+const formatSigned = (value: number, fractionDigits = 2): string => {
+  const fixed = value.toFixed(fractionDigits);
+  return value >= 0 ? `+${fixed}` : fixed;
+};
+
+const CANDLE_INTERVAL_MS = 5000;
+const CANDLE_WINDOW_MINUTES = 5;
+
+const buildCandle = (
+  previous: CandleEntry | null,
+  timestamp: Date,
+  indexSeed = 0
+): CandleEntry => {
+  const open = previous ? previous.close : 12.4 + Math.random() * 0.4;
+  const bullishBias = 0.001 + Math.random() * 0.005;
+  const correction = Math.random() < 0.25 ? Math.random() * 0.002 : 0;
+  const close = Number((open * (1 + bullishBias - correction)).toFixed(4));
+  const high = Number((Math.max(open, close) + Math.random() * 0.25).toFixed(4));
+  const low = Number((Math.min(open, close) - Math.random() * 0.18).toFixed(4));
+  const baseBuyers = previous?.buyers ?? 1880;
+  const baseSellers = previous?.sellers ?? 640;
+  const baseHolders = previous?.holders ?? 24800;
+  const buyers = baseBuyers + randomBetween(18, 52) + (indexSeed % 3);
+  const sellers = Math.max(baseSellers + randomBetween(-8, 24), 540);
+  const holders = baseHolders + randomBetween(28, 96);
+  const volume = randomBetween(4100, 7200) + Math.random() * 320;
+  return {
+    id: `candle-${timestamp.getTime()}-${indexSeed}`,
+    open,
+    high,
+    low,
+    close,
+    volume: Number(volume.toFixed(2)),
+    buyers,
+    sellers,
+    holders,
+    timestamp: timestamp.toISOString()
+  };
+};
+
+const seedCandles = (): CandleEntry[] => {
+  const candles: CandleEntry[] = [];
+  for (let index = 0; index < 24; index += 1) {
+    const minutesAgo = (23 - index) * CANDLE_WINDOW_MINUTES;
+    const timestamp = new Date(Date.now() - minutesAgo * 60_000);
+    const candle = buildCandle(candles[index - 1] ?? null, timestamp, index);
+    candles.push(candle);
+  }
+  return candles;
+};
+
 const buildBlock = (height: number, date = new Date()): BlockEntry => {
   const producer = randomFrom(validatorAgents).id;
   const latency = randomBetween(320, 460) / 1000;
@@ -260,6 +352,8 @@ export default function App() {
   });
   const blockHeightRef = useRef(blocks[0]?.height ?? BASE_HEIGHT);
 
+  const [candles, setCandles] = useState<CandleEntry[]>(() => seedCandles());
+
   const [ledger, setLedger] = useState<LedgerEntry[]>(initialLedger);
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -268,6 +362,11 @@ export default function App() {
   const [walletMemo, setWalletMemo] = useState<string>("");
   const [walletFeedback, setWalletFeedback] = useState<string | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
+
+  const [phantomAvailable, setPhantomAvailable] = useState<boolean>(false);
+  const [phantomAddress, setPhantomAddress] = useState<string | null>(null);
+  const [phantomConnecting, setPhantomConnecting] = useState(false);
+  const [phantomError, setPhantomError] = useState<string | null>(null);
 
   const [faucetHistory, setFaucetHistory] = useState<FaucetEntry[]>([]);
   const [isFaucetPending, setIsFaucetPending] = useState(false);
@@ -319,6 +418,69 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [copiedAddress]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setCandles((previousCandles) => {
+        const latest = previousCandles[previousCandles.length - 1] ?? null;
+        const next = buildCandle(latest, new Date(), previousCandles.length + 1);
+        const nextCandles = [...previousCandles.slice(-23), next];
+        appendCommand(
+          "markets",
+          `5m candle ${next.id.split("-").at(-1)} closed ${next.close.toFixed(4)} ${TOKEN_TICKER} (buyers ${next.buyers})`
+        );
+        return nextCandles;
+      });
+    }, CANDLE_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [appendCommand]);
+
+  useEffect(() => {
+    const provider = window.solana;
+    if (!provider || !provider.isPhantom) {
+      setPhantomAvailable(false);
+      return;
+    }
+
+    setPhantomAvailable(true);
+
+    const syncPublicKey = (publicKey: PhantomPublicKey | undefined) => {
+      const key = publicKey?.toString?.() ?? provider.publicKey?.toString?.();
+      if (key) {
+        setPhantomAddress(key);
+        setWalletAddress(key);
+        setWalletBalance((prev) => (prev === 0 ? 640.42 : prev));
+        setWalletFeedback(`Phantom connected: ${key.slice(0, 10)}…${key.slice(-6)} now active.`);
+        appendCommand("wallet", `linked Phantom ${key.slice(0, 10)}…${key.slice(-6)}`);
+      }
+    };
+
+    const handleConnect = (publicKey?: PhantomPublicKey) => {
+      syncPublicKey(publicKey);
+      setPhantomError(null);
+    };
+
+    const handleDisconnect = () => {
+      setPhantomAddress(null);
+      setWalletFeedback("Phantom disconnected from the terminal session.");
+      appendCommand("wallet", "phantom session disconnected");
+    };
+
+    provider.on?.("connect", handleConnect);
+    provider.on?.("disconnect", handleDisconnect);
+
+    provider.connect({ onlyIfTrusted: true }).then(({ publicKey }) => {
+      syncPublicKey(publicKey);
+    }).catch(() => {
+      // ignore silent rejection when not yet trusted
+    });
+
+    return () => {
+      provider.off?.("connect", handleConnect);
+      provider.off?.("disconnect", handleDisconnect);
+    };
+  }, [appendCommand]);
+
   const firstRouteChange = useRef(true);
   useEffect(() => {
     if (firstRouteChange.current) {
@@ -345,6 +507,68 @@ export default function App() {
     };
   }, [blocks, ledger, faucetHistory]);
 
+  const marketStats = useMemo(() => {
+    const latest = candles[candles.length - 1];
+    const previous = candles[candles.length - 2] ?? latest;
+    const sessionOpen = candles[0]?.open ?? latest.open;
+    const priceChange = latest.close - previous.close;
+    const changePercent = previous.close ? (priceChange / previous.close) * 100 : 0;
+    const sessionChange = latest.close - sessionOpen;
+    const sessionChangePercent = sessionOpen ? (sessionChange / sessionOpen) * 100 : 0;
+    const buyersDelta = latest.buyers - (previous?.buyers ?? latest.buyers);
+    const sellersDelta = latest.sellers - (previous?.sellers ?? latest.sellers);
+    const holdersDelta = latest.holders - (previous?.holders ?? latest.holders);
+    const rollingVolume = candles.reduce((acc, entry) => acc + entry.volume, 0);
+    return {
+      latest,
+      previous,
+      priceChange,
+      changePercent,
+      sessionChangePercent,
+      buyersDelta,
+      sellersDelta,
+      holdersDelta,
+      rollingVolume
+    };
+  }, [candles]);
+
+  const chartMetrics = useMemo(() => {
+    if (candles.length === 0) {
+      return {
+        min: 0,
+        max: 1,
+        width: 760,
+        height: 240,
+        padding: 24,
+        xUnit: 24,
+        candleWidth: 8
+      };
+    }
+
+    const min = Math.min(...candles.map((entry) => entry.low));
+    const max = Math.max(...candles.map((entry) => entry.high));
+    const width = 760;
+    const height = 240;
+    const padding = 24;
+    const xUnit = (width - padding * 2) / Math.max(candles.length - 1, 1);
+    const candleWidth = Math.max(6, xUnit * 0.5);
+
+    return { min, max, width, height, padding, xUnit, candleWidth };
+  }, [candles]);
+
+  const priceRange = Math.max(chartMetrics.max - chartMetrics.min, 0.0001);
+  const mapX = useCallback(
+    (index: number) => chartMetrics.padding + index * chartMetrics.xUnit,
+    [chartMetrics.padding, chartMetrics.xUnit]
+  );
+  const mapY = useCallback(
+    (value: number) =>
+      chartMetrics.height -
+      ((value - chartMetrics.min) / priceRange) * (chartMetrics.height - chartMetrics.padding * 2) -
+      chartMetrics.padding,
+    [chartMetrics.height, chartMetrics.min, chartMetrics.padding, priceRange]
+  );
+
   const manifestCards = useMemo(
     () => [
       {
@@ -369,7 +593,7 @@ export default function App() {
         title: "3. Ledger governance",
         copy: [
           `${networkStats.totalTransactions} tracked ledger events recorded in this session, spanning treasury, validator, and citizen activity.`,
-          `Protocol treasury now manages ${formatAmount(networkStats.totalVolume)} XLORE of routed value in the last window.`,
+          `Protocol treasury now manages ${formatAmount(networkStats.totalVolume)} ${TOKEN_NAME} (${TOKEN_TICKER}) of routed value in the last window.`,
           "Delegated citizens co-author proposals that validators enforce on-chain."
         ]
       },
@@ -385,11 +609,62 @@ export default function App() {
     [networkStats]
   );
 
+  const handlePhantomConnect = useCallback(async () => {
+    const provider = window.solana;
+    if (!provider || !provider.isPhantom) {
+      setPhantomError("Phantom wallet not detected. Install the extension to continue.");
+      appendCommand("wallet", "phantom extension missing");
+      return;
+    }
+
+    try {
+      setPhantomConnecting(true);
+      const response = await provider.connect();
+      const key = response.publicKey?.toString?.() ?? provider.publicKey?.toString?.();
+      if (key) {
+        setPhantomAddress(key);
+        setWalletAddress(key);
+        setWalletBalance((prev) => (prev === 0 ? 640.42 : prev));
+        setWalletFeedback(`Phantom connected: ${key.slice(0, 10)}…${key.slice(-6)} now active.`);
+        setWalletError(null);
+        appendCommand("wallet", `connected Phantom ${key.slice(0, 10)}…${key.slice(-6)}`);
+      }
+      setPhantomError(null);
+    } catch (error) {
+      setPhantomError(
+        error instanceof Error ? error.message : "Phantom connection request was rejected."
+      );
+      appendCommand("wallet", "phantom connection rejected");
+    } finally {
+      setPhantomConnecting(false);
+    }
+  }, [appendCommand]);
+
+  const handlePhantomDisconnect = useCallback(async () => {
+    const provider = window.solana;
+    if (!provider || !provider.isPhantom) {
+      return;
+    }
+    try {
+      await provider.disconnect();
+      setPhantomAddress(null);
+      setWalletFeedback("Phantom disconnected from the terminal session.");
+      appendCommand("wallet", "phantom session disconnected");
+      setPhantomError(null);
+    } catch (error) {
+      setPhantomError(
+        error instanceof Error ? error.message : "Unable to terminate Phantom session."
+      );
+    }
+  }, [appendCommand]);
+
   const handleGenerateWallet = useCallback(() => {
     const address = `0x${randomHex(40)}`;
     setWalletAddress(address);
     setWalletBalance(512.5);
-    setWalletFeedback(`Generated address ${address.slice(0, 10)}…${address.slice(-6)} with 512.50 XLORE balance.`);
+    setWalletFeedback(
+      `Generated address ${address.slice(0, 10)}…${address.slice(-6)} with 512.50 ${TOKEN_NAME} balance.`
+    );
     setWalletError(null);
     appendCommand("wallet", `generated wallet ${address.slice(0, 10)}…${address.slice(-6)}`);
   }, [appendCommand]);
@@ -438,14 +713,14 @@ export default function App() {
       setLedger((prev) => [entry, ...prev]);
       setWalletBalance((prev) => prev - parsedAmount);
       setWalletFeedback(
-        `Transfer executed. Hash ${shortHash(hash)} recorded and balance updated.`
+        `Transfer executed. Hash ${shortHash(hash)} recorded and ${TOKEN_TICKER} balance updated.`
       );
       setWalletError(null);
       setWalletAmount("0.0000");
       setWalletMemo("");
       appendCommand(
         "wallet",
-        `sent ${formatAmount(parsedAmount)} XLORE to ${walletRecipient.slice(0, 10)}…${walletRecipient.slice(-6)}`
+        `sent ${formatAmount(parsedAmount)} ${TOKEN_NAME} to ${walletRecipient.slice(0, 10)}…${walletRecipient.slice(-6)}`
       );
     },
     [appendCommand, walletAddress, walletAmount, walletBalance, walletMemo, walletRecipient]
@@ -489,12 +764,12 @@ export default function App() {
       setLedger((prev) => [ledgerEntry, ...prev]);
       setFaucetHistory((prev) => [entry, ...prev.slice(0, 4)]);
       setWalletBalance((prev) => prev + amount);
-      setWalletFeedback(`Faucet delivered ${formatAmount(amount)} XLORE to your wallet.`);
+      setWalletFeedback(`Faucet delivered ${formatAmount(amount)} ${TOKEN_NAME} to your wallet.`);
       setWalletError(null);
       setIsFaucetPending(false);
       appendCommand(
         "faucet",
-        `disbursed ${formatAmount(amount)} XLORE to ${walletAddress.slice(0, 10)}…${walletAddress.slice(-6)}`
+        `disbursed ${formatAmount(amount)} ${TOKEN_NAME} to ${walletAddress.slice(0, 10)}…${walletAddress.slice(-6)}`
       );
     }, 1800);
   }, [appendCommand, isFaucetPending, walletAddress]);
@@ -736,7 +1011,7 @@ export default function App() {
                           <td>{shortHash(entry.hash)}</td>
                           <td>{shortHash(entry.from)}</td>
                           <td>{shortHash(entry.to)}</td>
-                          <td>{formatAmount(entry.amount)} XLORE</td>
+                          <td>{formatAmount(entry.amount)} {TOKEN_TICKER}</td>
                           <td>{entry.memo ?? "—"}</td>
                           <td>
                             <span className={clsx("status-pill", entry.origin)}>{entry.status}</span>
@@ -750,13 +1025,211 @@ export default function App() {
               </div>
             )}
 
+            {activeRoute === "/markets" && (
+              <div className="route-content markets-route">
+                <h2>/markets</h2>
+                <p className="route-intro">
+                  {TOKEN_NAME} ({TOKEN_TICKER}) liquidity desk. Five-minute candles illustrate validator-side flow with live
+                  participant counts and rolling volume.
+                </p>
+
+                <div className="markets-board">
+                  <div
+                    className="markets-chart"
+                    role="img"
+                    aria-label={`Live ${TOKEN_NAME} ${TOKEN_TICKER} five-minute candlestick chart`}
+                  >
+                    <svg
+                      viewBox={`0 0 ${chartMetrics.width} ${chartMetrics.height}`}
+                      preserveAspectRatio="none"
+                    >
+                      <rect
+                        x={0}
+                        y={0}
+                        width={chartMetrics.width}
+                        height={chartMetrics.height}
+                        className="chart-surface"
+                      />
+                      {Array.from({ length: 5 }, (_, index) => {
+                        const value = chartMetrics.min + (priceRange / 4) * index;
+                        const y = mapY(value);
+                        return (
+                          <g key={`grid-${index}`}>
+                            <line x1={0} x2={chartMetrics.width} y1={y} y2={y} className="chart-grid" />
+                            <text x={chartMetrics.width - 6} y={y - 6} className="chart-label">
+                              {value.toFixed(2)}
+                            </text>
+                          </g>
+                        );
+                      })}
+                      {candles.map((candle, index) => {
+                        const x = mapX(index);
+                        const yHigh = mapY(candle.high);
+                        const yLow = mapY(candle.low);
+                        const yOpen = mapY(candle.open);
+                        const yClose = mapY(candle.close);
+                        const bodyTop = Math.min(yOpen, yClose);
+                        const bodyHeight = Math.max(Math.abs(yClose - yOpen), 2);
+                        const candleClass = candle.close >= candle.open ? "up" : "down";
+                        return (
+                          <g key={candle.id} className={clsx("candle", candleClass)}>
+                            <line
+                              x1={x}
+                              x2={x}
+                              y1={yHigh}
+                              y2={yLow}
+                              className="candle-wick"
+                            />
+                            <rect
+                              x={x - chartMetrics.candleWidth / 2}
+                              y={bodyTop}
+                              width={chartMetrics.candleWidth}
+                              height={bodyHeight || 2}
+                              className="candle-body"
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    <div className="markets-price-card">
+                      <div>
+                        <span>last price</span>
+                        <strong>{marketStats.latest.close.toFixed(4)} {TOKEN_TICKER}</strong>
+                      </div>
+                      <div>
+                        <span>5m change</span>
+                        <strong className={clsx({ positive: marketStats.priceChange >= 0, negative: marketStats.priceChange < 0 })}>
+                          {formatSigned(marketStats.priceChange, 3)} {TOKEN_TICKER}
+                        </strong>
+                        <em>{formatSigned(marketStats.changePercent, 2)}%</em>
+                      </div>
+                      <div>
+                        <span>session delta</span>
+                        <strong className={clsx({ positive: marketStats.sessionChangePercent >= 0, negative: marketStats.sessionChangePercent < 0 })}>
+                          {formatSigned(marketStats.sessionChangePercent, 2)}%
+                        </strong>
+                      </div>
+                      <div>
+                        <span>rolling volume</span>
+                        <strong>{Math.round(marketStats.rollingVolume).toLocaleString()} {TOKEN_TICKER}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="markets-metrics">
+                    <article className="metric-card">
+                      <header>buyers (5m)</header>
+                      <strong>{marketStats.latest.buyers.toLocaleString()}</strong>
+                      <span
+                        className={clsx("metric-delta", {
+                          positive: marketStats.buyersDelta >= 0,
+                          negative: marketStats.buyersDelta < 0
+                        })}
+                      >
+                        {formatSigned(marketStats.buyersDelta, 0)} vs prev
+                      </span>
+                    </article>
+                    <article className="metric-card">
+                      <header>sellers (5m)</header>
+                      <strong>{marketStats.latest.sellers.toLocaleString()}</strong>
+                      <span
+                        className={clsx("metric-delta", {
+                          positive: marketStats.sellersDelta >= 0,
+                          negative: marketStats.sellersDelta < 0
+                        })}
+                      >
+                        {formatSigned(marketStats.sellersDelta, 0)} vs prev
+                      </span>
+                    </article>
+                    <article className="metric-card">
+                      <header>holders (network)</header>
+                      <strong>{marketStats.latest.holders.toLocaleString()}</strong>
+                      <span
+                        className={clsx("metric-delta", {
+                          positive: marketStats.holdersDelta >= 0,
+                          negative: marketStats.holdersDelta < 0
+                        })}
+                      >
+                        {formatSigned(marketStats.holdersDelta, 0)} new
+                      </span>
+                    </article>
+                    <article className="metric-card">
+                      <header>validator sentiment</header>
+                      <strong>
+                        {marketStats.priceChange >= 0 ? "bullish" : "neutral"}
+                      </strong>
+                      <span className="metric-delta">
+                        0xProtocol desks broadcasting AI-governed bids.
+                      </span>
+                    </article>
+                  </div>
+
+                  <div className="markets-feed">
+                    <h3>Recent five-minute prints</h3>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Time</th>
+                          <th scope="col">Open</th>
+                          <th scope="col">Close</th>
+                          <th scope="col">High</th>
+                          <th scope="col">Low</th>
+                          <th scope="col">Volume</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...candles.slice(-6)].reverse().map((candle) => (
+                          <tr key={`feed-${candle.id}`}>
+                            <td>{formatTime(candle.timestamp)}</td>
+                            <td>{candle.open.toFixed(4)}</td>
+                            <td>{candle.close.toFixed(4)}</td>
+                            <td>{candle.high.toFixed(4)}</td>
+                            <td>{candle.low.toFixed(4)}</td>
+                            <td>{Math.round(candle.volume).toLocaleString()} {TOKEN_TICKER}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeRoute === "/wallet" && (
               <div className="route-content">
                 <h2>/wallet</h2>
                 <p className="route-intro">
-                  Manage a research wallet directly from the terminal. Generate fresh addresses, sign transfers, and monitor bal
-                  ance updates without leaving the interface.
+                  Manage a research wallet directly from the terminal. Generate fresh addresses, sign transfers, and monitor balance updates without leaving the interface.
                 </p>
+                <div className="wallet-provider">
+                  <div className="provider-header">
+                    <span>phantom</span>
+                    <span className={clsx("status-pill", phantomAddress ? "active" : phantomAvailable ? "attesting" : "pending")}>
+                      {phantomAddress ? "linked" : phantomAvailable ? "detected" : "missing"}
+                    </span>
+                  </div>
+                  <div className="provider-controls">
+                    <button
+                      type="button"
+                      onClick={handlePhantomConnect}
+                      disabled={phantomConnecting || Boolean(phantomAddress)}
+                    >
+                      {phantomConnecting ? "connecting" : phantomAddress ? "connected" : "connect phantom"}
+                    </button>
+                    {phantomAddress && (
+                      <button type="button" onClick={handlePhantomDisconnect} className="secondary">
+                        disconnect
+                      </button>
+                    )}
+                  </div>
+                  <p>
+                    {phantomAddress
+                      ? `linked ${phantomAddress.slice(0, 10)}…${phantomAddress.slice(-6)} to the terminal`
+                      : phantomAvailable
+                      ? "extension detected — authorise connection to sync balances"
+                      : "install Phantom wallet to bridge Solana access"}
+                  </p>
+                </div>
                 <div className="wallet-actions">
                   <button type="button" onClick={handleGenerateWallet}>
                     generate wallet
@@ -767,7 +1240,7 @@ export default function App() {
                   </div>
                   <div className="wallet-balance">
                     <span>balance</span>
-                    <strong>{formatAmount(walletBalance)} XLORE</strong>
+                    <strong>{formatAmount(walletBalance)} {TOKEN_TICKER}</strong>
                   </div>
                 </div>
                 <form className="wallet-form" onSubmit={handleWalletSubmit} aria-describedby="wallet-feedback">
@@ -815,6 +1288,7 @@ export default function App() {
                 <div id="wallet-feedback" className="route-messages">
                   {walletFeedback && <p className="success">{walletFeedback}</p>}
                   {walletError && <p className="error">{walletError}</p>}
+                  {phantomError && <p className="error">{phantomError}</p>}
                 </div>
 
                 <div className="ledger-section">
@@ -843,7 +1317,7 @@ export default function App() {
                                 <span className={clsx("status-pill", direction)}>{direction}</span>
                               </td>
                               <td>{shortHash(counterparty)}</td>
-                              <td>{formatAmount(entry.amount)} XLORE</td>
+                              <td>{formatAmount(entry.amount)} {TOKEN_TICKER}</td>
                               <td>{entry.memo ?? "—"}</td>
                               <td>{formatTime(entry.timestamp)}</td>
                             </tr>
@@ -888,7 +1362,7 @@ export default function App() {
                           <span className={clsx("faucet-status", drip.status)}>{drip.status}</span>
                         </header>
                         <p>
-                          Sent {formatAmount(drip.amount)} XLORE to {drip.to.slice(0, 10)}…{drip.to.slice(-6)}
+                          Sent {formatAmount(drip.amount)} {TOKEN_NAME} to {drip.to.slice(0, 10)}…{drip.to.slice(-6)}
                         </p>
                       </article>
                     ))

@@ -1134,6 +1134,21 @@ body {
   color: rgba(255, 143, 143, 0.95);
 }
 
+.status-pill.active {
+  border-color: rgba(114, 255, 198, 0.6);
+  color: rgba(205, 255, 230, 0.95);
+}
+
+.status-pill.attesting {
+  border-color: rgba(255, 221, 143, 0.55);
+  color: rgba(255, 221, 143, 0.9);
+}
+
+.status-pill.pending {
+  border-color: rgba(173, 214, 255, 0.45);
+  color: rgba(173, 214, 255, 0.85);
+}
+
 .wallet-form {
   margin-top: 1.5rem;
   display: grid;
@@ -1142,6 +1157,67 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(77, 255, 178, 0.22);
   background: rgba(2, 28, 18, 0.82);
+}
+
+.wallet-provider {
+  margin-top: 1.5rem;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(77, 255, 178, 0.24);
+  background: linear-gradient(135deg, rgba(2, 28, 18, 0.92), rgba(6, 44, 30, 0.78));
+  display: grid;
+  gap: 0.75rem;
+}
+
+.wallet-provider .provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: rgba(141, 241, 193, 0.78);
+}
+
+.wallet-provider .provider-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.wallet-provider .provider-controls button {
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(77, 255, 178, 0.28);
+  background: rgba(4, 48, 30, 0.8);
+  color: rgba(205, 255, 230, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.wallet-provider .provider-controls button:hover:not(:disabled) {
+  border-color: rgba(114, 255, 198, 0.55);
+  color: rgba(205, 255, 230, 1);
+}
+
+.wallet-provider .provider-controls button.secondary {
+  border-color: rgba(255, 221, 143, 0.45);
+  color: rgba(255, 221, 143, 0.92);
+  background: rgba(58, 40, 10, 0.42);
+}
+
+.wallet-provider .provider-controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wallet-provider p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(205, 255, 230, 0.78);
 }
 
 .wallet-actions {
@@ -1345,6 +1421,185 @@ body {
   margin: 0;
   font-size: 0.85rem;
   color: rgba(205, 255, 230, 0.85);
+}
+
+.markets-board {
+  display: grid;
+  gap: clamp(1.4rem, 3vw, 2rem);
+  margin-top: 1.5rem;
+}
+
+.markets-chart {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid rgba(77, 255, 178, 0.22);
+  background: linear-gradient(160deg, rgba(2, 24, 16, 0.92), rgba(2, 28, 18, 0.78));
+  padding: 1.2rem 1.4rem 1.6rem;
+  overflow: hidden;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.markets-chart svg {
+  width: 100%;
+  height: clamp(220px, 40vw, 280px);
+  display: block;
+}
+
+.chart-surface {
+  fill: rgba(4, 36, 24, 0.72);
+  stroke: rgba(77, 255, 178, 0.16);
+  stroke-width: 1px;
+}
+
+.chart-grid {
+  stroke: rgba(114, 255, 198, 0.12);
+  stroke-width: 1px;
+  stroke-dasharray: 4 6;
+}
+
+.chart-label {
+  fill: rgba(141, 241, 193, 0.5);
+  font-size: 0.65rem;
+  text-anchor: end;
+}
+
+.candle .candle-wick {
+  stroke-width: 1.6px;
+  stroke-linecap: round;
+}
+
+.candle .candle-body {
+  stroke-width: 1px;
+  rx: 2px;
+  ry: 2px;
+}
+
+.candle.up .candle-wick,
+.candle.up .candle-body {
+  stroke: rgba(114, 255, 198, 0.85);
+  fill: rgba(77, 255, 178, 0.45);
+}
+
+.candle.down .candle-wick,
+.candle.down .candle-body {
+  stroke: rgba(255, 143, 143, 0.8);
+  fill: rgba(255, 143, 143, 0.35);
+}
+
+.markets-price-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(77, 255, 178, 0.18);
+  background: rgba(2, 20, 14, 0.75);
+  font-size: 0.85rem;
+}
+
+.markets-price-card span {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  color: rgba(141, 241, 193, 0.75);
+}
+
+.markets-price-card strong {
+  display: block;
+  color: rgba(205, 255, 230, 0.95);
+  font-size: 1.05rem;
+}
+
+.markets-price-card strong.positive,
+.metric-delta.positive {
+  color: rgba(114, 255, 198, 0.92);
+}
+
+.markets-price-card strong.negative,
+.metric-delta.negative {
+  color: rgba(255, 143, 143, 0.9);
+}
+
+.markets-price-card em {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: rgba(141, 241, 193, 0.72);
+}
+
+.markets-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: clamp(1rem, 2.4vw, 1.5rem);
+}
+
+.metric-card {
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(77, 255, 178, 0.2);
+  background: rgba(2, 24, 16, 0.82);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.metric-card header {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(141, 241, 193, 0.72);
+}
+
+.metric-card strong {
+  font-size: 1.1rem;
+  color: rgba(205, 255, 230, 0.95);
+}
+
+.metric-delta {
+  font-size: 0.8rem;
+  color: rgba(173, 214, 255, 0.78);
+}
+
+.markets-feed {
+  margin-top: 1rem;
+}
+
+.markets-feed h3 {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  color: rgba(205, 255, 230, 0.92);
+}
+
+.markets-feed table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(77, 255, 178, 0.18);
+  background: rgba(2, 20, 14, 0.72);
+}
+
+.markets-feed th,
+.markets-feed td {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.markets-feed thead {
+  background: rgba(4, 40, 28, 0.65);
+  color: rgba(205, 255, 230, 0.82);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+}
+
+.markets-feed tbody tr:nth-child(odd) {
+  background: rgba(2, 30, 20, 0.4);
+}
+
+.markets-feed tbody tr:hover {
+  background: rgba(77, 255, 178, 0.08);
 }
 
 .terminal-footer {
