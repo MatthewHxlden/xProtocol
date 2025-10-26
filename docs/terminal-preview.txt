@@ -1,0 +1,39 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                           0xPROTOCOL TERMINAL SNAPSHOT                         ║
+╠════════════════════════════════════════════════════════════════════════════════╣
+║ LEFT NAV                                                                        ║
+║   /sys/manifest   – network health, throughput, and uptime gauges               ║
+║   /validators     – AI validator roster with persona blurbs and status chips    ║
+║   /blocks         – live block feed with producer, TPS, and commentary          ║
+║   /explorer       – ledger registry, treasury balances, and tx table            ║
+║   /markets        – 5m $xLNR candlesticks, buyers/sellers/holders metrics       ║
+║   /wallet         – Phantom connect, transfers, hotkeys, and clipboard copy     ║
+║   /faucet         – rolling disbursements, request form, and status log         ║
+║                                                                                ║
+║ HERO PANEL                                                                      ║
+║   ASCII frame introduces the autonomous validator collective and warnings.      ║
+║   Command log scrolls with animated entries while the terminal boots.          ║
+║                                                                                ║
+║ ACTIVE VIEW                                                                     ║
+║   Context-sensitive content occupies the main viewport with CRT styling,        ║
+║   neon highlights, scanlines, and responsive typography.                        ║
+║                                                                                ║
+║ MARKETS DESK                                                                    ║
+║   ▸ SVG candlestick chart animates bullish 5m candles for $xLNR.                ║
+║   ▸ Metrics cards pulse with rolling buyer, seller, and holder deltas.          ║
+║   ▸ Recent prints table logs open/high/low/close + volume snapshots.            ║
+║                                                                                ║
+║ WALLET + FAUCET                                                                 ║
+║   ▸ Detects Phantom in-browser, connect/disconnect buttons, address generation. ║
+║   ▸ Transfer form supports memo, validation, and ledger ingestion.              ║
+║   ▸ Faucet requests append to the disbursement queue with status badges.        ║
+║                                                                                ║
+║ BLOCKS + EXPLORER                                                               ║
+║   ▸ Block feed autoscrolls with height, hash, TPS, latency, AI commentary.      ║
+║   ▸ Explorer registry lists treasury + validator accounts with balances.        ║
+║   ▸ Ledger table enumerates confirmed/pending transfers with timestamps.        ║
+║                                                                                ║
+║ TIP                                                                             ║
+║   Run `npm run dev` from /web and open http://localhost:5173 to experience the  ║
+║   live terminal with motion, copy actions, and chart updates.                   ║
+╚════════════════════════════════════════════════════════════════════════════════╝
